@@ -13,7 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write # the failure step pushes the gate log to a ci-logs/* branch
+  pull-requests: write
 
 jobs:
   ci:
@@ -44,18 +45,13 @@ jobs:
         run: |
           set -o pipefail
           cargo xtask ci 2>&1 | tee ci-output.log
-      - name: Report gate output on the PR (on failure)
-        if: failure() && github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Push gate log to a ci-logs branch (on failure)
+        if: failure()
         run: |
-          {
-            echo "### ❌ CI gate output (tail)"
-            echo "<details><summary>cargo xtask ci — ultime righe</summary>"
-            echo ""
-            echo '```'
-            tail -c 40000 ci-output.log | sed 's/`/`​/g'
-            echo '```'
-            echo "</details>"
-          } > ci-comment.md
-          gh pr comment "${{ github.event.pull_request.number }}" --body-file ci-comment.md
+          tail -c 200000 ci-output.log > ci-tail.log || true
+          git config user.name "filmcraft-ci"
+          git config user.email "ci@users.noreply.github.com"
+          git switch --orphan "ci-log-tmp"
+          git add -f ci-tail.log
+          git commit -m "CI gate log for run ${{ github.run_id }}"
+          git push origin "HEAD:refs/heads/ci-logs/run-${{ github.run_id }}"
