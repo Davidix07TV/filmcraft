@@ -92,7 +92,7 @@ mod tests {
         let sub = dir.join("trailer");
         std::fs::create_dir_all(&sub).ok();
         std::fs::write(sub.join("SKILL.md"), "---\nname: trailer\ndescription: custom\n---\n# Custom\n").ok();
-        let s = load_skills(&[dir.clone()]);
+        let s = load_skills(std::slice::from_ref(&dir));
         let t = s.iter().find(|x| x.name == "trailer").expect("trailer skill");
         assert_eq!(t.description, "custom");
         let _ = std::fs::remove_dir_all(&dir);

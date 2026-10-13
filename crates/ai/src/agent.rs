@@ -264,8 +264,7 @@ mod tests {
 
     #[test]
     fn autosafe_runs_queries_and_gates_mutations() {
-        let mut cfg = AiConfig::default();
-        cfg.approval_mode = ApprovalMode::AutoSafe;
+        let cfg = AiConfig { approval_mode: ApprovalMode::AutoSafe, ..Default::default() };
         let mut a = Agent::new(cfg, vec![]);
         let mut h = FakeHost::default();
         match a.ingest(Message::assistant("", vec![call("1", "sequence.inspect"), call("2", "edit.undo")]), &mut h) {

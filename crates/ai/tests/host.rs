@@ -16,7 +16,7 @@ fn host_searches_describes_and_executes_real_commands() {
     let d = s.describe_command("sequence.inspect").expect("describe");
     assert_eq!(d["id"], "sequence.inspect");
 
-    s.execute("file.openDemoProject", &json!({})).expect("demo project");
-    let v: Value = s.execute("sequence.inspect", &json!({})).expect("inspect after demo");
+    <Session as CommandHost>::execute(&mut s, "file.openDemoProject", &json!({})).expect("demo project");
+    let v: Value = <Session as CommandHost>::execute(&mut s, "sequence.inspect", &json!({})).expect("inspect after demo");
     assert!(!v.is_null());
 }
