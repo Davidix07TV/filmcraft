@@ -37,7 +37,7 @@ jobs:
                 --component rustfmt,clippy --target wasm32-unknown-unknown
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Rust cache
-        uses: Swatinem/rust-cache@42dc69e1a15a1939b5a0a90e3fb36498a163c6fd # v2
+        uses: Swatinem/rust-cache@v2
         with:
           shared-key: filmcraft-ci
       - name: Quality gates
