@@ -41,4 +41,21 @@ jobs:
         with:
           shared-key: filmcraft-ci
       - name: Quality gates
-        run: cargo xtask ci
+        run: |
+          set -o pipefail
+          cargo xtask ci 2>&1 | tee ci-output.log
+      - name: Report gate output on the PR (on failure)
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "### ❌ CI gate output (tail)"
+            echo "<details><summary>cargo xtask ci — ultime righe</summary>"
+            echo ""
+            echo '```'
+            tail -c 40000 ci-output.log | sed 's/`/`​/g'
+            echo '```'
+            echo "</details>"
+          } > ci-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file ci-comment.md
