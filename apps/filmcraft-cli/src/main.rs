@@ -486,15 +486,23 @@ async fn cli() {
             if a.opt("--bridge").is_some() {
                 usage("ai: il comando `ai` gira headless; per la app live usa il pannello AI");
             }
-            let data_dir = a.opt("--data-dir").map(std::path::PathBuf::from).or_else(filmcraft_engine::autosave::default_data_dir)
+            let data_dir = a
+                .opt("--data-dir")
+                .map(std::path::PathBuf::from)
+                .or_else(filmcraft_engine::autosave::default_data_dir)
                 .unwrap_or_else(|| usage("ai: cartella dati non trovata"));
             let cfg = filmcraft_ai::AiConfig::load(&data_dir);
             if !cfg.is_ready() {
-                fail(format!("ai: nessuna API key per {} — apri il pannello AI nella app e salvala, oppure imposta FILMCRAFT_AI_API_KEY", cfg.provider.label()));
+                fail(format!(
+                    "ai: nessuna API key per {} — apri il pannello AI nella app e salvala, oppure imposta FILMCRAFT_AI_API_KEY",
+                    cfg.provider.label()
+                ));
             }
             let mut s = Session::default();
             if let Some(p) = a.opt("--project") {
-                if let Err(e) = s.execute("file.open", json!({"path": p})) { fail(e); }
+                if let Err(e) = s.execute("file.open", json!({"path": p})) {
+                    fail(e);
+                }
             } else if a.flag("--demo") {
                 let _ = s.execute("file.openDemoProject", json!({}));
             }
@@ -504,13 +512,17 @@ async fn cli() {
             agent.push_user(prompt);
             loop {
                 let resp = agent.complete().unwrap_or_else(|e| fail(e.to_string()));
-                if !resp.text.trim().is_empty() { outln!("{}", resp.text); }
+                if !resp.text.trim().is_empty() {
+                    outln!("{}", resp.text);
+                }
                 match agent.ingest(resp, &mut s) {
                     filmcraft_ai::Step::Done => break,
                     filmcraft_ai::Step::Continue => {}
                     filmcraft_ai::Step::NeedsApproval(calls) => {
                         outln!("— Piano proposto ({} comandi):", calls.len());
-                        for c in &calls { outln!("  • {} {}", c.name, c.args); }
+                        for c in &calls {
+                            outln!("  • {} {}", c.name, c.args);
+                        }
                         out!("Approvo? [y/N] ");
                         use std::io::Write as _;
                         let _ = std::io::stdout().flush();
@@ -527,9 +539,13 @@ async fn cli() {
                 }
             }
             if let Some(p) = a.opt("--save-as") {
-                if let Err(e) = s.execute("file.saveAs", json!({"path": p})) { fail(format!("saving: {e}")); }
+                if let Err(e) = s.execute("file.saveAs", json!({"path": p})) {
+                    fail(format!("saving: {e}"));
+                }
             } else if a.flag("--save") {
-                if let Err(e) = s.execute("file.save", json!({})) { fail(format!("saving: {e}")); }
+                if let Err(e) = s.execute("file.save", json!({})) {
+                    fail(format!("saving: {e}"));
+                }
             }
         }
         "mcp" => {
