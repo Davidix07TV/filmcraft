@@ -151,20 +151,16 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let avail = ui.available_height();
     let input_h = 64.0;
     let plan_h = if app.ai.pending.is_some() { 44.0 } else { 0.0 };
-    egui::ScrollArea::vertical()
-        .id_salt("ai-transcript")
-        .max_height((avail - input_h - plan_h - 12.0).max(80.0))
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            for line in &app.ai.transcript {
-                ui.label(format!("{}:", line.who));
-                ui.label(&line.text);
-                ui.add_space(6.0);
-            }
-            if busy {
-                ui.label("AI: sto pensando…");
-            }
-        });
+    egui::ScrollArea::vertical().id_salt("ai-transcript").max_height((avail - input_h - plan_h - 12.0).max(80.0)).auto_shrink([false, false]).show(ui, |ui| {
+        for line in &app.ai.transcript {
+            ui.label(format!("{}:", line.who));
+            ui.label(&line.text);
+            ui.add_space(6.0);
+        }
+        if busy {
+            ui.label("AI: sto pensando…");
+        }
+    });
 
     // ---- piano in attesa ----
     if app.ai.pending.is_some() {

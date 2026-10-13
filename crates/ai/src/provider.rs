@@ -85,8 +85,7 @@ pub fn build_request(cfg: &AiConfig, system: &str, messages: &[Message], tools: 
                     _ => json!({"role":"user","content":m.text}),
                 })
                 .collect();
-            let tool_defs: Vec<Value> =
-                tools.iter().map(|t| json!({"name":t.name,"description":t.description,"input_schema":t.input_schema})).collect();
+            let tool_defs: Vec<Value> = tools.iter().map(|t| json!({"name":t.name,"description":t.description,"input_schema":t.input_schema})).collect();
             (
                 format!("{}/v1/messages", cfg.base_url.trim_end_matches('/')),
                 json!({"model":cfg.model,"max_tokens":4096,"system":system,"messages":msgs,"tools":tool_defs}),
@@ -113,14 +112,9 @@ pub fn build_request(cfg: &AiConfig, system: &str, messages: &[Message], tools: 
                     }
                 }
             }
-            let tool_defs: Vec<Value> = tools
-                .iter()
-                .map(|t| json!({"type":"function","function":{"name":t.name,"description":t.description,"parameters":t.input_schema}}))
-                .collect();
-            (
-                format!("{}/chat/completions", cfg.base_url.trim_end_matches('/')),
-                json!({"model":cfg.model,"messages":msgs,"tools":tool_defs}),
-            )
+            let tool_defs: Vec<Value> =
+                tools.iter().map(|t| json!({"type":"function","function":{"name":t.name,"description":t.description,"parameters":t.input_schema}})).collect();
+            (format!("{}/chat/completions", cfg.base_url.trim_end_matches('/')), json!({"model":cfg.model,"messages":msgs,"tools":tool_defs}))
         }
     }
 }
@@ -203,7 +197,11 @@ pub fn chat(cfg: &AiConfig, system: &str, messages: &[Message], tools: &[ToolDef
         req = match cfg.provider {
             Provider::Anthropic => req.header("x-api-key", &key).header("anthropic-version", "2023-06-01"),
             Provider::OpenAi | Provider::Compatible => {
-                if key.is_empty() { req } else { req.header("authorization", &format!("Bearer {key}")) }
+                if key.is_empty() {
+                    req
+                } else {
+                    req.header("authorization", &format!("Bearer {key}"))
+                }
             }
         };
         let mut resp = req.send_json(body).map_err(|e| AiError::Http(e.to_string()))?;
@@ -223,11 +221,12 @@ mod tests {
     #[test]
     fn anthropic_roundtrip() {
         let c = cfg(Provider::Anthropic);
-        let (_url, body) = build_request(&c, "sys", &[Message::user("ciao")], &[ToolDef {
-            name: "execute_command".into(),
-            description: "d".into(),
-            input_schema: json!({"type":"object"}),
-        }]);
+        let (_url, body) = build_request(
+            &c,
+            "sys",
+            &[Message::user("ciao")],
+            &[ToolDef { name: "execute_command".into(), description: "d".into(), input_schema: json!({"type":"object"}) }],
+        );
         assert_eq!(body["system"], "sys");
         assert_eq!(body["tools"][0]["name"], "execute_command");
         let m = parse_response(

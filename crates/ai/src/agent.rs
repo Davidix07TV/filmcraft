@@ -88,7 +88,9 @@ pub fn tool_defs(cfg: &AiConfig) -> Vec<ToolDef> {
 pub fn system_prompt(skills: &[Skill], cfg: &AiConfig) -> String {
     let catalogue: Vec<String> = skills.iter().map(|s| format!("- {}: {}", s.name, s.description)).collect();
     let mode_note = match cfg.approval_mode {
-        ApprovalMode::PlanApprove => "Modalità approvazione: PIANO — prima di modificare, spiega il piano all'utente; i comandi di modifica verranno eseguiti solo dopo il suo OK esplicito nell'interfaccia.",
+        ApprovalMode::PlanApprove => {
+            "Modalità approvazione: PIANO — prima di modificare, spiega il piano all'utente; i comandi di modifica verranno eseguiti solo dopo il suo OK esplicito nell'interfaccia."
+        }
         ApprovalMode::AutoSafe => "Modalità approvazione: le letture sono automatiche, le modifiche richiedono l'OK dell'utente nell'interfaccia.",
         ApprovalMode::FullAuto => "Modalità approvazione: autonomia totale concessa dall'utente; agisci e poi riassumi cosa hai fatto.",
     };
@@ -210,8 +212,13 @@ impl Agent {
     /// Record a rejection so the model can offer an alternative.
     pub fn reject(&mut self, calls: &[ToolCall], reason: &str) -> Step {
         for call in calls {
-            self.messages
-                .push(Message::tool_result(call.id.clone(), format!("RIFIUTATO dall'utente{}. Proponi un'alternativa o chiedi indicazioni.", if reason.is_empty() { String::new() } else { format!(": {reason}") })));
+            self.messages.push(Message::tool_result(
+                call.id.clone(),
+                format!(
+                    "RIFIUTATO dall'utente{}. Proponi un'alternativa o chiedi indicazioni.",
+                    if reason.is_empty() { String::new() } else { format!(": {reason}") }
+                ),
+            ));
         }
         Step::Continue
     }

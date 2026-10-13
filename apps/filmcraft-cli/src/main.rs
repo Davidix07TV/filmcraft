@@ -95,7 +95,7 @@ SUBCOMMANDS
                                 media info as JSON, with MXF / Ogg / BWF details; with
                                 --image-sequence <media> is the first numbered still of a sequence
   bench-decode <media> [--frames N]
-  ai "<prompt>"                 chat with the built-in AI assistant (BYOK, config in <data-dir>/ai.json or
+  ai PROMPT                     chat with the built-in AI assistant (BYOK, config in <data-dir>/ai.json or
                                 FILMCRAFT_AI_API_KEY); edits via engine commands, asking approval on stdin
                                 for mutating commands unless the saved approval mode allows them
   mcp                           MCP server on stdio (headless, or --bridge to the live app)
