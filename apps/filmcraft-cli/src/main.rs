@@ -542,10 +542,10 @@ async fn cli() {
                 if let Err(e) = s.execute("file.saveAs", json!({"path": p})) {
                     fail(format!("saving: {e}"));
                 }
-            } else if a.flag("--save") {
-                if let Err(e) = s.execute("file.save", json!({})) {
-                    fail(format!("saving: {e}"));
-                }
+            } else if a.flag("--save")
+                && let Err(e) = s.execute("file.save", json!({}))
+            {
+                fail(format!("saving: {e}"));
             }
         }
         "mcp" => {
