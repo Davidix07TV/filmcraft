@@ -1,0 +1,44 @@
+# Full Rust quality gate on pull requests: the same checks contributors run locally
+# (`cargo xtask ci` = fmt, clippy -D warnings, workspace tests in release mode, layering,
+# asset attribution, wasm check). The existing workflows cover packaging and releases;
+# this one covers the code itself.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: cargo xtask ci (Ubuntu)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: System libraries (X11/Wayland/GTK/ALSA/Vulkan + ffmpeg test oracle)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config cmake \
+            libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev \
+            libxi-dev libxcb1-dev libgtk-3-dev libfontconfig1-dev libfreetype6-dev \
+            libasound2-dev libvulkan-dev libgl1-mesa-dev ffmpeg
+      - name: Rust toolchain (stable + wasm target + rustfmt/clippy)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain stable \
+                --component rustfmt,clippy --target wasm32-unknown-unknown
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1a15a1939b5a0a90e3fb36498a163c6fd # v2
+        with:
+          shared-key: filmcraft-ci
+      - name: Quality gates
+        run: cargo xtask ci
