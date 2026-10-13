@@ -166,14 +166,13 @@ impl Agent {
             }
             other => Err(format!("strumento sconosciuto o non abilitato: {other}")),
         };
-        let text = match result {
+        match result {
             Ok(v) => {
                 let s = v.to_string();
                 s.chars().take(16_000).collect()
             }
             Err(e) => format!("ERRORE: {e}"),
-        };
-        text
+        }
     }
 
     /// Feed one provider response: executes ungated tools, gates the rest.
