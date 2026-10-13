@@ -95,6 +95,9 @@ SUBCOMMANDS
                                 media info as JSON, with MXF / Ogg / BWF details; with
                                 --image-sequence <media> is the first numbered still of a sequence
   bench-decode <media> [--frames N]
+  ai "<prompt>"                 chat with the built-in AI assistant (BYOK, config in <data-dir>/ai.json or
+                                FILMCRAFT_AI_API_KEY); edits via engine commands, asking approval on stdin
+                                for mutating commands unless the saved approval mode allows them
   mcp                           MCP server on stdio (headless, or --bridge to the live app)
   help                          this text
   --version                     print the version
@@ -477,6 +480,57 @@ async fn cli() {
             let offline: Vec<Value> = offline.iter().filter_map(|o| serde_json::to_value(o).ok()).collect();
             check_offline(&a, &offline, &format!("render: {out}"));
             diag(format_args!("rendered {}x{} in {:.1} ms → {out}", img.w, img.h, dt.as_secs_f64() * 1000.0));
+        }
+        "ai" => {
+            let prompt = a.pos(1).unwrap_or_else(|| usage("ai \"<prompt>\" [--demo | --project p.fcproj] [--save-as out.fcproj]"));
+            if a.opt("--bridge").is_some() {
+                usage("ai: il comando `ai` gira headless; per la app live usa il pannello AI");
+            }
+            let data_dir = a.opt("--data-dir").map(std::path::PathBuf::from).or_else(filmcraft_engine::autosave::default_data_dir)
+                .unwrap_or_else(|| usage("ai: cartella dati non trovata"));
+            let cfg = filmcraft_ai::AiConfig::load(&data_dir);
+            if !cfg.is_ready() {
+                fail(format!("ai: nessuna API key per {} — apri il pannello AI nella app e salvala, oppure imposta FILMCRAFT_AI_API_KEY", cfg.provider.label()));
+            }
+            let mut s = Session::default();
+            if let Some(p) = a.opt("--project") {
+                if let Err(e) = s.execute("file.open", json!({"path": p})) { fail(e); }
+            } else if a.flag("--demo") {
+                let _ = s.execute("file.openDemoProject", json!({}));
+            }
+            let project_dir = s.path.as_ref().and_then(|p| std::path::Path::new(p).parent().map(|d| d.to_path_buf()));
+            let skill_dirs = filmcraft_ai::skills::user_skill_dirs(Some(&data_dir), project_dir.as_deref());
+            let mut agent = filmcraft_ai::Agent::new(cfg, filmcraft_ai::skills::load_skills(&skill_dirs));
+            agent.push_user(prompt);
+            loop {
+                let resp = agent.complete().unwrap_or_else(|e| fail(e.to_string()));
+                if !resp.text.trim().is_empty() { outln!("{}", resp.text); }
+                match agent.ingest(resp, &mut s) {
+                    filmcraft_ai::Step::Done => break,
+                    filmcraft_ai::Step::Continue => {}
+                    filmcraft_ai::Step::NeedsApproval(calls) => {
+                        outln!("— Piano proposto ({} comandi):", calls.len());
+                        for c in &calls { outln!("  • {} {}", c.name, c.args); }
+                        out!("Approvo? [y/N] ");
+                        use std::io::Write as _;
+                        let _ = std::io::stdout().flush();
+                        let mut line = String::new();
+                        let _ = std::io::stdin().read_line(&mut line);
+                        if line.trim().eq_ignore_ascii_case("y") || line.trim().eq_ignore_ascii_case("s") {
+                            let _ = agent.approve(&calls, &mut s);
+                            outln!("✓ eseguito");
+                        } else {
+                            let _ = agent.reject(&calls, "rifiutato da CLI");
+                            outln!("✗ rifiutato");
+                        }
+                    }
+                }
+            }
+            if let Some(p) = a.opt("--save-as") {
+                if let Err(e) = s.execute("file.saveAs", json!({"path": p})) { fail(format!("saving: {e}")); }
+            } else if a.flag("--save") {
+                if let Err(e) = s.execute("file.save", json!({})) { fail(format!("saving: {e}")); }
+            }
         }
         "mcp" => {
             if let Some(opt) = a.unknown_opt(&["--bridge", "--project", "--demo", "--data-dir"]) {

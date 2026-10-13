@@ -31,6 +31,7 @@ filmcraft-mxf = { workspace = true }
 filmcraft-mpegts = { workspace = true }
 filmcraft-ogg = { workspace = true }
 filmcraft-automation = { workspace = true }
+filmcraft-ai = { workspace = true }
 serde_json = { workspace = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
