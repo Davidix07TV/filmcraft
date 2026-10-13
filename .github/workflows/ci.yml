@@ -1,7 +1,8 @@
 # Full Rust quality gate on pull requests: the same checks contributors run locally
 # (`cargo xtask ci` = fmt, clippy -D warnings, workspace tests in release mode, layering,
-# asset attribution, wasm check). The existing workflows cover packaging and releases;
-# this one covers the code itself.
+# asset attribution, wasm check), split into steps so a failure names its gate.
+# The existing workflows cover packaging and releases; this one covers the code itself.
+# On failure the combined gate log is posted as a PR comment via the API.
 name: CI
 
 on:
@@ -13,8 +14,9 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write # the failure step pushes the gate log to a ci-logs/* branch
+  contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   ci:
@@ -41,17 +43,38 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: filmcraft-ci
-      - name: Quality gates
+      - name: Gate — fmt
         run: |
           set -o pipefail
-          cargo xtask ci 2>&1 | tee ci-output.log
-      - name: Push gate log to a ci-logs branch (on failure)
-        if: failure()
+          cargo fmt --check 2>&1 | tee gate-fmt.log
+      - name: Gate — clippy
         run: |
-          tail -c 200000 ci-output.log > ci-tail.log || true
-          git config user.name "filmcraft-ci"
-          git config user.email "ci@users.noreply.github.com"
-          git switch --orphan "ci-log-tmp"
-          git add -f ci-tail.log
-          git commit -m "CI gate log for run ${{ github.run_id }}"
-          git push origin "HEAD:refs/heads/ci-logs/run-${{ github.run_id }}"
+          set -o pipefail
+          cargo clippy --workspace --all-targets --release -- -D warnings 2>&1 | tee gate-clippy.log
+      - name: Gate — test
+        run: |
+          set -o pipefail
+          cargo test --workspace --release 2>&1 | tee gate-test.log
+      - name: Gate — layers + assets
+        run: |
+          set -o pipefail
+          cargo xtask layers 2>&1 | tee gate-layers.log
+          cargo xtask assets 2>&1 | tee -a gate-layers.log
+      - name: Gate — wasm
+        run: |
+          set -o pipefail
+          cargo xtask wasm 2>&1 | tee gate-wasm.log
+      - name: Post gate log as PR comment (on failure)
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          cat gate-*.log > ci-output.log 2>/dev/null || true
+          tail -c 35000 ci-output.log > ci-tail.txt || true
+          jq -Rs '{body: ("### ❌ CI gate output (tail)\n\n```\n" + . + "\n```")}' ci-tail.txt > comment.json
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            -d @comment.json
