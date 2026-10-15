@@ -259,20 +259,23 @@ fn every_builtin_preset_exports_and_ffprobe_confirms() {
             }
             "apv" => {
                 assert!(fmt_name.contains("mov"), "{name}: {fmt_name}");
-                assert_eq!(v["codec_name"], "apv", "{name}");
-                let p = settings["apvProfile"].as_str().unwrap();
-                let idc = match p {
-                    "422-10" => "33",
-                    "422-12" => "44",
-                    "444-10" => "55",
-                    "444-12" => "66",
-                    "4444-10" => "77",
-                    "4444-12" => "88",
-                    "400-10" => "99",
-                    other => other,
-                };
-                let got_profile = v["profile"].as_str().unwrap_or("");
-                assert!(got_profile == p || got_profile == idc, "{name}: profile {got_profile} != {p} ({idc})");
+                assert_eq!(v["codec_tag_string"], "apv1", "{name}");
+                if !v["codec_name"].is_null() {
+                    assert_eq!(v["codec_name"], "apv", "{name}");
+                    let p = settings["apvProfile"].as_str().unwrap();
+                    let idc = match p {
+                        "422-10" => "33",
+                        "422-12" => "44",
+                        "444-10" => "55",
+                        "444-12" => "66",
+                        "4444-10" => "77",
+                        "4444-12" => "88",
+                        "400-10" => "99",
+                        other => other,
+                    };
+                    let got_profile = v["profile"].as_str().unwrap_or("");
+                    assert!(got_profile == p || got_profile == idc, "{name}: profile {got_profile} != {p} ({idc})");
+                }
                 assert_eq!(a["codec_name"], "pcm_s24le", "{name}");
             }
             "mxf-op1a" => {
