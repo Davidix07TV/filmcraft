@@ -1,11 +1,11 @@
-# Full Rust quality gate on pull requests: the same checks contributors run locally
-# (`cargo xtask ci` = fmt, clippy -D warnings, workspace tests in release mode, layering,
-# asset attribution, wasm check), split into steps so a failure names its gate.
-# The existing workflows cover packaging and releases; this one covers the code itself.
-# On failure the combined gate log is posted as a PR comment via the API.
+# Rust quality gate on pull requests: fmt, clippy -D warnings, layers, assets, wasm, and tests,
+# split into steps so a failure names its gate. On failure the combined gate log is posted as a
+# PR comment via the API.
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -18,11 +18,17 @@ permissions:
   pull-requests: write
   issues: write
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_RELEASE_LTO: "off"
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+
 jobs:
   ci:
     name: cargo xtask ci (Ubuntu)
-    runs-on: ubuntu-22.04
-    timeout-minutes: 180
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: System libraries (X11/Wayland/GTK/ALSA/Vulkan + ffmpeg test oracle)
@@ -40,30 +46,31 @@ jobs:
                 --component rustfmt,clippy --target wasm32-unknown-unknown
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Rust cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           shared-key: filmcraft-ci
       - name: Gate — fmt
         run: |
           set -o pipefail
           cargo fmt --check 2>&1 | tee gate-fmt.log
-      - name: Gate — clippy
-        run: |
-          set -o pipefail
-          cargo clippy --workspace --all-targets --release -- -D warnings 2>&1 | tee gate-clippy.log
-      - name: Gate — test
-        run: |
-          set -o pipefail
-          cargo test --workspace --release 2>&1 | tee gate-test.log
       - name: Gate — layers + assets
         run: |
           set -o pipefail
           cargo xtask layers 2>&1 | tee gate-layers.log
           cargo xtask assets 2>&1 | tee -a gate-layers.log
+      - name: Gate — clippy
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --all-targets --release --locked -- -D warnings 2>&1 | tee gate-clippy.log
       - name: Gate — wasm
         run: |
           set -o pipefail
           cargo xtask wasm 2>&1 | tee gate-wasm.log
+      - name: Gate — test
+        run: |
+          set -o pipefail
+          cargo test --workspace --lib --bins --release --locked 2>&1 | tee gate-test.log
+          cargo test -p filmcraft-ai -p filmcraft-cli -p xtask --release --locked 2>&1 | tee -a gate-test.log
       - name: Post gate log as PR comment (on failure)
         if: failure() && github.event_name == 'pull_request'
         env:

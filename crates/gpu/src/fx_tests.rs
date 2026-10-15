@@ -52,6 +52,16 @@ fn half(v: f32) -> f32 {
     super::blend_tests::f16_to_f32(f32_to_f16(v))
 }
 
+fn fx_compositor() -> Option<GpuCompositor> {
+    let (dev, q) = device()?;
+    let c = GpuCompositor::new(&dev, &q);
+    if c.fx.is_none() {
+        eprintln!("effect stage unavailable on this adapter; skipping");
+        return None;
+    }
+    Some(c)
+}
+
 /// Linear premultiplied test picture, every value representable in half floats: hue sweep along
 /// x, lightness along y, a grey ramp, black and white columns, super-whites (up to 1.6), and
 /// alpha 1 / partial / 0 bands.
@@ -309,11 +319,7 @@ fn cases() -> Vec<(&'static str, Vec<(&'static str, ParamValue)>, bool)> {
 /// Every effect case on the GPU against its CPU reference, on the working image read back as f32.
 #[test]
 fn gpu_effects_match_cpu_exactly() {
-    let Some((dev, q)) = device() else {
-        eprintln!("no GPU adapter; skipping");
-        return;
-    };
-    let mut c = GpuCompositor::new(&dev, &q);
+    let Some(mut c) = fx_compositor() else { return };
     let (w, h) = (67u32, 41u32);
     let px = picture(w, h);
     let frame = VideoFrame::rgba_f32(w, h, px.clone());
@@ -337,11 +343,7 @@ fn gpu_effects_match_cpu_exactly() {
 
 #[test]
 fn gpu_extract_zero_softness_has_no_fractional_edge() {
-    let Some((dev, q)) = device() else {
-        eprintln!("no GPU adapter; skipping");
-        return;
-    };
-    let mut c = GpuCompositor::new(&dev, &q);
+    let Some(mut c) = fx_compositor() else { return };
     let (w, h) = (67, 41);
     let px = picture(w, h);
     let frame = VideoFrame::rgba_f32(w, h, px.clone());
@@ -366,11 +368,7 @@ fn gpu_extract_zero_softness_has_no_fractional_edge() {
 /// Chains run in order (and Unsharp keeps its original while blurring, between other blurs).
 #[test]
 fn gpu_effect_chains_match_cpu() {
-    let Some((dev, q)) = device() else {
-        eprintln!("no GPU adapter; skipping");
-        return;
-    };
-    let mut c = GpuCompositor::new(&dev, &q);
+    let Some(mut c) = fx_compositor() else { return };
     let (w, h) = (96u32, 54u32);
     let px = picture(w, h);
     let frame = VideoFrame::rgba_f32(w, h, px.clone());
@@ -414,11 +412,7 @@ fn gpu_effect_chains_match_cpu() {
 /// Keyframed parameters are evaluated at the layer's time on the CPU: the GPU result follows them.
 #[test]
 fn keyframed_effects_follow_time() {
-    let Some((dev, q)) = device() else {
-        eprintln!("no GPU adapter; skipping");
-        return;
-    };
-    let mut c = GpuCompositor::new(&dev, &q);
+    let Some(mut c) = fx_compositor() else { return };
     let (w, h) = (48u32, 32u32);
     let px = picture(w, h);
     let frame = VideoFrame::rgba_f32(w, h, px.clone());
@@ -494,11 +488,7 @@ fn hostile_parameters_are_bounded() {
     let op = FxOp::eval(&effect("gaussian_blur", &[("blurriness", fl(1e30))]), &cx(Tick::ZERO, 1.0), w, h);
     let Some(FxOp::Gaussian { rx, ry, .. }) = op else { panic!("{op:?}") };
     assert!(rx.iter().chain(&ry).all(|r| *r as usize <= 4 * w.max(h).max(8)), "{rx:?} {ry:?}");
-    let Some((dev, q)) = device() else {
-        eprintln!("no GPU adapter; skipping");
-        return;
-    };
-    let mut c = GpuCompositor::new(&dev, &q);
+    let Some(mut c) = fx_compositor() else { return };
     let frame = VideoFrame::rgba_f32(w as u32, h as u32, picture(w as u32, h as u32));
     let ops = vec![
         FxOp::eval(&effect("gaussian_blur", &[("blurriness", fl(1e30))]), &cx(Tick::ZERO, 1.0), w, h).expect("op"),
@@ -647,11 +637,7 @@ fn gpu_effect_layers_match_cpu_plan() {
 /// Plans without effects never create working textures.
 #[test]
 fn plain_layers_skip_the_effect_stage() {
-    let Some((dev, q)) = device() else {
-        eprintln!("no GPU adapter; skipping");
-        return;
-    };
-    let mut c = GpuCompositor::new(&dev, &q);
+    let Some(mut c) = fx_compositor() else { return };
     let plan = FramePlan::Layers { width: 64, height: 36, layers: vec![PlanLayer::new(yuv_frame(64, 36), Affine::IDENTITY, 1.0, Blend::Normal)] };
     c.composite(&plan);
     assert!(c.fx.as_ref().is_some_and(fx::FxStage::is_idle));
@@ -714,11 +700,7 @@ fn layers_with_effects_fall_back_to_the_cpu_without_a_stage() {
 /// Odd dimensions expose interpolation drift that can invent opacity before any effect runs.
 #[test]
 fn effect_source_identity_preserves_odd_sized_half_float_texels() {
-    let Some((dev, q)) = device() else {
-        eprintln!("no GPU adapter; skipping");
-        return;
-    };
-    let mut c = GpuCompositor::new(&dev, &q);
+    let Some(mut c) = fx_compositor() else { return };
     for (w, h) in [(67u32, 41u32), (96, 54), (64, 32)] {
         let px = picture(w, h);
         let frame = VideoFrame::rgba_f32(w, h, px.clone());
@@ -734,11 +716,7 @@ fn effect_source_identity_preserves_odd_sized_half_float_texels() {
 
 #[test]
 fn alpha_invert_does_not_amplify_invented_opacity_at_odd_source_pixels() {
-    let Some((dev, q)) = device() else {
-        eprintln!("no GPU adapter; skipping");
-        return;
-    };
-    let mut c = GpuCompositor::new(&dev, &q);
+    let Some(mut c) = fx_compositor() else { return };
     let (w, h) = (67, 41);
     let px = picture(w, h);
     let frame = VideoFrame::rgba_f32(w, h, px.clone());
@@ -763,11 +741,7 @@ fn alpha_invert_does_not_amplify_invented_opacity_at_odd_source_pixels() {
 /// The exact source grid keeps the existing box-minification behavior at non-unit factors.
 #[test]
 fn effect_source_integer_decimation_preserves_cpu_box_oracle() {
-    let Some((dev, q)) = device() else {
-        eprintln!("no GPU adapter; skipping");
-        return;
-    };
-    let mut c = GpuCompositor::new(&dev, &q);
+    let Some(mut c) = fx_compositor() else { return };
     for (w, h) in [(67u32, 41u32), (96, 54)] {
         let frame = VideoFrame::rgba_f32(w, h, picture(w, h));
         for n in [2, 4, 8] {

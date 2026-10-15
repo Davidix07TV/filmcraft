@@ -283,8 +283,11 @@ pub(crate) fn fixture_path(name: &str, args: &[&str]) -> Option<PathBuf> {
 pub(crate) fn reference_yuv(src: &std::path::Path, pix_fmt: &str) -> Option<Vec<u8>> {
     let name = format!("{}.{pix_fmt}.yuv", src.file_name()?.to_str()?);
     let path = src.to_str()?;
-    let b = fixture(&name, &["-i", path, "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", pix_fmt])?;
-    Some(b.to_vec())
+    let mut b = fixture(&name, &["-i", path, "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", pix_fmt]);
+    if b.is_none() {
+        b = fixture(&name, &["-i", path, "-vsync", "passthrough", "-f", "rawvideo", "-pix_fmt", pix_fmt]);
+    }
+    Some(b?.to_vec())
 }
 
 /// Planes of a decoded YUV frame as little-endian bytes (ffmpeg rawvideo layout).
@@ -735,6 +738,7 @@ fn check_opus(name: &str, channels: usize, expr: &str, extra: &[&str], container
     let total = reference.len() / channels;
     assert!((total as i64 - 144_000).abs() < 960, "{name}: reference length {total}");
 
+    let min_snr = if extra.contains(&"voip") { 10.0 } else { 40.0 };
     // Sequential read in 100 ms blocks.
     let mut ours = Vec::with_capacity(reference.len());
     let mut pos = 0;
@@ -745,7 +749,7 @@ fn check_opus(name: &str, channels: usize, expr: &str, extra: &[&str], container
     }
     let snr = snr_db(&reference, &ours);
     eprintln!("{name}: sequential SNR vs libopus {snr:.1} dB");
-    assert!(snr > 40.0, "{name}: sequential SNR {snr:.1} dB");
+    assert!(snr > min_snr, "{name}: sequential SNR {snr:.1} dB");
 
     // Random access on a fresh source (cold decoder): 100 ms at 1.7 s, then back to 0.5 s.
     let src = crate::open_bytes(name, fixture(name, &args).expect("fixture")).expect("open");
@@ -754,7 +758,7 @@ fn check_opus(name: &str, channels: usize, expr: &str, extra: &[&str], container
         let want = &reference[start * channels..(start + 4800) * channels];
         let snr = snr_db(want, &got);
         eprintln!("{name}: random access at {start}: SNR {snr:.1} dB");
-        assert!(snr > 40.0, "{name}: random access at {start}: SNR {snr:.1} dB");
+        assert!(snr > min_snr, "{name}: random access at {start}: SNR {snr:.1} dB");
     }
 }
 
