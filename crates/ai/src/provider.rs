@@ -204,8 +204,9 @@ pub fn chat(cfg: &AiConfig, system: &str, messages: &[Message], tools: &[ToolDef
                 }
             }
         };
-        let mut resp = req.send_json(body).map_err(|e| AiError::Http(e.to_string()))?;
-        let v: Value = resp.body_mut().read_json().map_err(|e| AiError::Http(e.to_string()))?;
+        let mut resp = req.send(&body.to_string()).map_err(|e| AiError::Http(e.to_string()))?;
+        let raw = resp.body_mut().read_to_string().map_err(|e| AiError::Http(e.to_string()))?;
+        let v: Value = serde_json::from_str(&raw).map_err(|e| AiError::Http(e.to_string()))?;
         parse_response(cfg, &v)
     }
 }
