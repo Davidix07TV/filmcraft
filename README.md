@@ -236,6 +236,8 @@ Every menu item, button, slider and drag in FilmCraft is a **command** with an i
 
 The trailer and the grades in these screenshots were built exactly this way, by an agent driving the running app.
 
+**Built-in AI panel.** Window ▸ **AI** opens a bring-your-own-key chat (Anthropic, OpenAI, or any OpenAI-compatible endpoint) whose agent edits through those same commands, follows local `SKILL.md` skills, can optionally search the web for how to do something, and — in the default mode — shows you its plan for approval before touching the project (`filmcraft-cli ai "…"` runs the same agent headless). See [docs/ai.md](docs/ai.md).
+
 <br>
 
 ## Everywhere

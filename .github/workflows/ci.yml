@@ -1,0 +1,80 @@
+# Full Rust quality gate on pull requests: the same checks contributors run locally
+# (`cargo xtask ci` = fmt, clippy -D warnings, workspace tests in release mode, layering,
+# asset attribution, wasm check), split into steps so a failure names its gate.
+# The existing workflows cover packaging and releases; this one covers the code itself.
+# On failure the combined gate log is posted as a PR comment via the API.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  ci:
+    name: cargo xtask ci (Ubuntu)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: System libraries (X11/Wayland/GTK/ALSA/Vulkan + ffmpeg test oracle)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config cmake \
+            libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev \
+            libxi-dev libxcb1-dev libgtk-3-dev libfontconfig1-dev libfreetype6-dev \
+            libasound2-dev libvulkan-dev libgl1-mesa-dev ffmpeg
+      - name: Rust toolchain (stable + wasm target + rustfmt/clippy)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain stable \
+                --component rustfmt,clippy --target wasm32-unknown-unknown
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: filmcraft-ci
+      - name: Gate — fmt
+        run: |
+          set -o pipefail
+          cargo fmt --check 2>&1 | tee gate-fmt.log
+      - name: Gate — clippy
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --all-targets --release -- -D warnings 2>&1 | tee gate-clippy.log
+      - name: Gate — test
+        run: |
+          set -o pipefail
+          cargo test --workspace --release 2>&1 | tee gate-test.log
+      - name: Gate — layers + assets
+        run: |
+          set -o pipefail
+          cargo xtask layers 2>&1 | tee gate-layers.log
+          cargo xtask assets 2>&1 | tee -a gate-layers.log
+      - name: Gate — wasm
+        run: |
+          set -o pipefail
+          cargo xtask wasm 2>&1 | tee gate-wasm.log
+      - name: Post gate log as PR comment (on failure)
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          cat gate-*.log > ci-output.log 2>/dev/null || true
+          tail -c 35000 ci-output.log > ci-tail.txt || true
+          jq -Rs '{body: ("### ❌ CI gate output (tail)\n\n```\n" + . + "\n```")}' ci-tail.txt > comment.json
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            -d @comment.json

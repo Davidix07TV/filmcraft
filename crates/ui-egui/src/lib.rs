@@ -284,6 +284,8 @@ pub struct FilmcraftApp {
     pub hooks: HostHooks,
     pub dialog: Option<Dialog>,
     pub file_dialogs: panels::file_dialogs::FileDialogState,
+    /// AI assistant panel state (chat, pending plan, provider config handle).
+    pub ai: panels::ai::AiState,
     /// The native file dialog the host is showing ([`Self::pick`]).
     native_dialog: Option<native_dialogs::PendingDialog>,
     pub auto: automation::Registry,
@@ -550,6 +552,7 @@ impl FilmcraftApp {
             // Unsaved changes left by a session that died are offered first thing.
             dialog: recovery.then_some(Dialog::Recovery),
             file_dialogs: Default::default(),
+            ai: Default::default(),
             native_dialog: None,
             auto: Default::default(),
             textures: HashMap::new(),
@@ -855,7 +858,7 @@ impl FilmcraftApp {
         if !self.ui.dock.contains(p) && !self.ui.floating.iter().any(|group| group.panels.contains(&p)) {
             let near = match p {
                 // a side panel beside Properties (or Essential Sound), never over the Program monitor
-                PanelKind::TextToSpeech => [PanelKind::Properties, PanelKind::EssentialSound, PanelKind::EssentialGraphics]
+                PanelKind::TextToSpeech | PanelKind::AiAssistant => [PanelKind::Properties, PanelKind::EssentialSound, PanelKind::EssentialGraphics]
                     .into_iter()
                     .find(|k| self.ui.dock.contains(*k))
                     .unwrap_or(PanelKind::Program),
