@@ -40,6 +40,7 @@ fn phone_vfr_mp4(ffmpeg: &Path) -> Option<PathBuf> {
                  [1:a]volume='if(between(t,1,1.1)+between(t,3,3.1),1,0)':eval=frame[a]",
             ])
             .args(["-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-fps_mode", "passthrough"])
+            .args(["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"])
             .args(["-video_track_timescale", "30000", "-c:a", "aac", "-b:a", "128k", "-ac", "2"])
             .arg(tmp)
             .status()
