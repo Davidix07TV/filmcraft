@@ -61,7 +61,7 @@ jobs:
       - name: Gate — clippy
         run: |
           set -o pipefail
-          cargo clippy --workspace --all-targets --locked -- -D warnings 2>&1 | tee gate-clippy.log
+          cargo clippy --workspace --all-targets --release --locked -- -D warnings 2>&1 | tee gate-clippy.log
       - name: Gate — wasm
         run: |
           set -o pipefail
@@ -69,8 +69,8 @@ jobs:
       - name: Gate — test
         run: |
           set -o pipefail
-          cargo test --workspace --lib --bins --locked 2>&1 | tee gate-test.log
-          cargo test -p filmcraft-ai -p filmcraft-cli -p xtask --locked 2>&1 | tee -a gate-test.log
+          cargo test --workspace --lib --bins --release --locked 2>&1 | tee gate-test.log
+          cargo test -p filmcraft-ai -p filmcraft-cli -p xtask --release --locked 2>&1 | tee -a gate-test.log
       - name: Post gate log as PR comment (on failure)
         if: failure() && github.event_name == 'pull_request'
         env:
